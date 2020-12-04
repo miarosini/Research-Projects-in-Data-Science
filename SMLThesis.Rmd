@@ -1,0 +1,627 @@
+---
+title: "SML310 Final Project"
+author: "Mia Rosini"
+date: "December 1st, 2020"
+output:
+  pdf_document: default
+  html_notebook: default
+  word_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library("readxl")
+library(tidyverse)
+library(dplyr)
+library(sjPlot)
+library(stargazer)
+library(ggthemes)
+library(lme4)
+library(jtools)
+library(car)
+library(readr)
+library(caTools)
+library(ggplot2)
+library(e1071)
+library(naivebayes)
+library(caret)
+require(knitr) # for better tables in the Markdown
+require(caTools) # for sample.split function
+require(ROCR) # for the ROC curve 
+require(caret) # for confusionmatrix() 
+require(ROSE) # for downsampling
+require(rpart) # for decision tree 
+suppressWarnings(library(effects))
+
+output_type <- ifelse(knitr::is_latex_output(),  
+                      "latex", "html")   
+```
+
+
+
+## 1 INTRODUCTION
+
+Today, the United States is made up of 13.6% immigrants, with more than 40 million immigrants residing in the nation. Immigrants are a fundamental part of this country’s identity, although rarely before have they been at the forefront of American politics. President Donald J. Trump made immigration reform the centerpiece of his first term. 
+
+In May of 2018, the Trump Administration formalized their “zero-tolerance” policy, aiming to deter immigrants from illegally crossing the border by threatening to prosecute adults and separate them from their children (Villa 2020). From May to June of 2018, five thousand families were separated, at which a California federal judge ordered the government to reunify the families affected and terminate the policy (Narea 2020). However, the federal government neglected to link parents to children in their databases, making the reunification process especially difficult (Narea 2020). As of October 23, 2020, the parents of 545 children remain unknown, and an estimated two-thirds of parents have been deported without their children (Villa 2020). 
+
+Not only has the Trump administration separated families indefinitely, the government has also regularly violated detention rules and continues to hold immigrants in inhumane conditions. Over the past four years, the number of children held at the border increased to almost half a million, and the detentions of unaccompanied and accompanied children peaked in 2019 at over 300,000, with around 40 percent held longer than the legal 72 hour limit. Children were held in cages, forced to sleep on concrete floors, and live in freezing temperatures. The federal government violated the basic standards of care immigrants were required to receive: “hot meals, fresh water, clean clothes, and a quick exit from holding facilities into the care of qualified sponsors” (Flagg, Calderón 2020). 
+
+Under the Trump administration, immigrant children have been kept in abysmal conditions at detention facilities. This report aims to answer this overarching question: Were immigrant children of certain nationalities, genders, and ages more likely to spend more than 72 hours in a detention facility than others? 
+
+This report will utilize logistic regression analysis to answer this question and then will create logistic regression and naive bayes classification models to predict whether an immigrant of a certain nationality, gender, and age will be kept over or under the 72 hour limit. 
+
+## 2 THEORY
+
+In a time when immigration policy is at the forefront of American politics, scholarly debates have emerged to address how the U.S. Government ought to respond to immigrants in the United States. There are numerous publications that examine how United States’ Presidents have impacted national immigration policy and deportation patterns. 
+
+One side of the debate argues that the Trump administration has implemented policies that violate human rights. “Policy Point-Counterpoint: Are the Trump Administration’s Immigration Policies Just or Unjust for Immigrant Children in Particular and the Country in General?”, written by Dr. Victoria A. Anyikwa and colleagues, evaluates how immigration laws under the Trump Administration have negatively impacted immigrant children and contributed to the psychological trauma and health consequences they face (Anyikwa et al 2019, 1). The Trump administration has implemented a series of “no-nonsense” policies; his anti-immigration rhetoric has fueled anti-immigrant sentiment and the creation of hate groups to promote negative attitudes among U.S. citizens (Anyikwa 6). 
+
+“Family Separation and Lives in Limbo: U.S. Immigration Policy in the 1920s and during the Trump Administration”, written by Yael Schachear, examines policies and practices that are related to family separation among immigrants in the 1920s and now. It asserts that the Trump administration supports family separations and deporting critically ill immigrant children. It concludes that the current administration goes beyond the policies from the 1920s and has imposed policies to restrict admission and impede the successful integration of immigrants (Schachear 2020, 197). Schachear’s research demonstrates that Trump’s policies separating families not only excludes newcomers but also prevents those immigrants already in the United States’ from feeling a valued part of the United States (193). 
+
+The other side of the scholarly debate argues that Trump’s administration has implemented policies that are protecting U.S. citizens from the harms caused by immigrants to the economy. Donald Trump’s White House released a memo outlining that immigrants are a strain on public resources. The rate of low-skilled immigration in the United States puts a strain on public resources (welfare programs) and increases the burden of American taxpayers. Trump’s immigration reform will stem the tide of low-skilled immigration to secure the borders, curb the low-skilled workers by ending extended-family chain migration, and end the visa lottery system (White House). 
+
+This report supports the theory that the Trump administration implemented harsh policies that violated the human rights of immigrants and immigrant children. 
+
+## 3 DATA 
+
+The data for this report was from the U.S. Customs and Border Protection in October, 2020. The dataset is a combination of two sources: “CBP Office of Field Operations (OFO) child detentions: Detentions of children at ports of entry by the U.S. Customs and Border Protection Border Patrol between mid-January of 2017 and late January of 2020” and “CBP Border Patrol (BP) child detentions: Detentions of children between ports of entry by the U.S. Customs and Border Protection Office of Field Operations between mid-January of 2017 and mid-June of 2020”. The variables include: custody book-in time and date, custody book-out time and date, apprehension date, time in custody in hours, age group of child, child gender, child's country of origin, border, field office name, data source. 
+
+After gathering the data, a “Year” column was added, and the custody book-in time and date, custody book-out time and date, border, field office name, and data source variables were removed due to lack of relevance for the analysis. Next, a binary outcome variable was added called: “Over_72_hours”. It was set to 1 if the number of hours a child was held in custody was greater than 72, and 0 if the number of hours a child was held in custody was less than 72. 
+
+The variables of age group and gender were changed to characters in order to be fed into the logistic regression analysis. Immigrant children aged 0-1 years were sorted into Age Group 1; ages 1-2 sorted into Age Group 2; ages 3-5 sorted into Age Group 3; ages 6-8 sorted into Age Group 4; ages 9-11 sorted into Age Group 5; ages 12-14 sorted into Age Group 6; ages 15-18 sorted into Age Group 7. 
+
+This dataset was merged with another dataset that contained regions of the world and the corresponding countries in each respective region. These regions included: Asia, Europe, Africa, Central America, Oceania, Caribbean, South America, Oceania, Caribbean, South America, Canada, Middle East, Mexico. A "Region of Origin" column was added and the "Country of Origin" column was removed.
+
+The final dataset contained columns: Year, Gender, Age Group, Region of Origin, Over_72_hours. Each row represented an immigrant child held in a detention facility between the mid-January 2017 and late-January 2020. Exploratory data analysis was conducted. The missing values were removed from the dataset. See Appendix I for data cleaning and exploratory data analysis code. 
+
+## 4 METHODS 
+
+In order to answer whether immigrant children of certain nationalities, genders, and ages were more likely to spend more than 72 hours in a detention facility than others, a logistic regression model was created. The full logistic regression model looked at overtime in detention facilities based on immigrant gender, age group, region of origin, and year. 
+
+Second, a naive bayes classification model was created to predict an immigrant child's odds of overtime in a detention facility. The dataset was converted to factors to feed into the model. The dataset was then split into a training set and a test set with a 70/30 split. The naive bayes classification model was created using the training dataset. Contingency tables on the training dataset and the test dataset were generated and then the accuracy scores on both sets were calculated.
+
+Third, a logistic regression classification model was created to predict an immigrant child’s odds of overtime in a detention facility. The dataset was split into a training set and a test set with a 70/30 split. A classification model was built using the training data, and the model performance was evaluated on the training set and the test set through accuracy scores. Fourth, a logistic regression classification model was made with a balanced dataset in which the over_72_hours = 1 datapoints and over_72_hours = 0 datapoints were equal in number (See Section 5. Results were detailed step-by-step code).
+
+Fifth, a decision tree classifier was made with four different balanced datasets in which the datapoints in which over_72_hours = 1 and over_72_hours = 0 were equal (see Appendix 4 for detailed step-by-step code). 
+
+Last, the results of the logistic regression model, naive bayes classification model, and the logistic regression classification model were collected (see Section 5. Results)
+
+## 5 RESULTS
+
+### Logistic Regression:
+
+After logistic regression analysis, the results indicate a statistically significant relationship between certain immigrant children characteristics and overtime (over 72 hours) in the detention facility. Specifically, an immigrant child who is female, 6-8 years old, kept in the year 2020, and from Central America has the highest odds of being detained longer than the 72 hour time limit. See Table 1 for Logistic Regression results. See Effect Plots 1-4 for Logistic Regression Probability Plots. 
+
+### Findings from Table 1: 
+
+#### Year:
+
+•	For every one year increase from 2017 to 2020, the log odds of overtime increases by 0.07
+
+#### Gender:
+
+•	Being female instead of male increases the log odds of overtime by 0.009
+
+#### Age Group:
+
+•	An immigrant child in age group 3 (3-5 years old), versus an immigrant in age group 1, increases the log odds of overtime by 0.009
+
+•	An immigrant child in age group 4 (6-8 years old), versus an immigrant in age group 1, increases the log odds of overtime by 0.020
+
+•	An immigrant child in age group 5 (9-11 years old), versus an immigrant in age group 1, increases the log odds of overtime by 0.013
+
+•	An immigrant child in age group 7 (15-18 years old), versus an immigrant in age group 1, decreases the log odds of overtime by 0.055
+
+
+
+
+#### Region of Origin: 
+
+•	An immigrant child from Europe, versus an immigrant from Mexico, increases the log odds of overtime by 0.172
+
+•	An immigrant child from Asia, versus an immigrant from Mexico, increases the log odds of overtime by 0.182
+
+•	An immigrant child from Africa, versus an immigrant from Mexico, increases the log odds of overtime by 0.115
+
+•	An immigrant child from Central America, versus an immigrant from Mexico, increases the log odds of overtime by 0.230
+
+•	An immigrant child from Middle East, versus an immigrant from Mexico, increases the log odds of overtime by 0.176
+
+•	An immigrant child from South America, versus an immigrant from Mexico, increases the log odds of overtime by 0.090
+
+
+### Findings from Plots 1 - 4: 
+
+#### Plot 1:
+
+• Every year from 2017 onwards has a higher expected probability of detainment longer than 72 hours 
+
+#### Plot 2: 
+
+• Female immigrant children have a higher expected probability of being detained longer than 72 hours than males (0.332 vs. 0.325)
+
+#### Plot 3: 
+
+• Immigrant children in age group 7 (15-18 years old) have the lowest expected probability of being detained longer than 72 hours (0.28)
+
+• Immigrant children in age group 4 (6-8 years old) have the highest expected probability of being detained longer than 72 hours (0.36)
+
+#### Plot 4: 
+
+• Immigrant children from Central America have the highest expected probability of being detained longer than 72 hours (0.3)
+
+• Immigrant children from Canada have the lowest expected probability (with the lowest error bar) of being detained longer than 72 hours (0.1)
+
+### Scope of Inference: 
+The scope of inference for this report is based on the data used, in that scope would lie within the United States’ child detentions reported by the CBP Office of Field Operations and the CBP Border Patrol between mid-January 2017 and late January 2020. 
+
+```{r table, echo = FALSE, message = FALSE, results='asis'}
+#Download DataSet 
+detention_minors <- read_excel("detention_of_minors.xlsx")
+detention_minors$year = substr(detention_minors$date_in,1,4) 
+detention_minors$year = suppressWarnings(as.numeric(detention_minors$year))
+
+#Dataset of Year, Gender, Citizenship, Age Group, Hours in Custody, Border, Sector
+condense <- detention_minors %>% select(year, gender, citizenship, age_group, hours_in_custody, border, sector)
+
+#Create new Column: 72 hours? 1 if yes, 0 if No 
+condense$over_72_hours <- "Set"
+condense$hours_in_custody = suppressWarnings(as.numeric(condense$hours_in_custody))
+condense$over_72_hours[condense$hours_in_custody > 72.0] <- "1"
+condense$over_72_hours[condense$hours_in_custody <= 72.0] <- "0"
+condense$over_72_hours <- suppressWarnings(as.numeric(condense$over_72_hours))
+
+#Condensed Dataset of Year, Gender, Citizenship, Age Group, Hours in Custody, Over_72_hours
+Final <- condense %>% select(year, gender, citizenship, age_group, border, over_72_hours) %>% na.omit()
+Final <- Final %>% na.omit() 
+Final$region_of_origin <- suppressWarnings(Final$region_of_origin %>% na.omit())
+
+#Remove "Years" 
+Final$age_group <- substr(Final$age_group,1,nchar(Final$age_group)-6) #Age Group 
+
+#Make variables factors 
+Final$gender[Final$gender == "Female"] <- 1 #Female is 1 
+Final$gender[Final$gender == "Male"] <- 0 #Male is 0 
+Final$gender <- suppressWarnings(as.numeric(Final$gender))
+Final$gender <- suppressWarnings(as.character(Final$gender))
+
+Final$age_group[Final$age_group == "0-1"] <- 1 #Change to age group 
+Final$age_group[Final$age_group == "1-2"] <- 2 
+Final$age_group[Final$age_group == "3-5"] <- 3 
+Final$age_group[Final$age_group == "6-8"] <- 4 
+Final$age_group[Final$age_group == "9-11"] <- 5 
+Final$age_group[Final$age_group == "12-14"] <- 6
+Final$age_group[Final$age_group == "15-18"] <- 7
+Final$age_group <- suppressWarnings(as.character(Final$age_group))
+
+#Merge Regions Dataset 
+regions <- read_excel("Regions_.xlsx")
+Final <- merge(regions, Final)
+
+Final <- Final %>% select(-citizenship)
+Final <- Final %>% select(year, gender, age_group, region_of_origin, border, over_72_hours)
+
+#Remove Missing Values
+Final <- Final %>% na.omit()
+suppressWarnings(Final[Final$region_of_origin == "NA",] <- as.numeric(Final$region_of_origin == "NA"))
+Final <- Final[Final$region_of_origin != "0",]
+Final <- Final[Final$age_group != "",]
+
+#Model, Logistic Regression
+Final$region_of_origin <- suppressWarnings(as.factor(Final$region_of_origin))
+Final$region_of_origin <- relevel(Final$region_of_origin, ref = "Mexico")
+model <- glm(over_72_hours ~ year + gender + age_group + region_of_origin, data = Final)
+
+stargazer(model, 
+         type = output_type,
+         font.size = "footnotesize",
+         header = FALSE) # turn off message about package
+```
+\newpage
+
+```{r, fig.width = 6, fig.height = 4}
+plot(allEffects(model)[1], xlab = "Year", ylab = "Over 72 Hours Probability", 
+     main = "Plot 1: Year Effect Plot") 
+```
+
+```{r, fig.width = 6, fig.height = 4}
+plot(allEffects(model)[2], xlab = "Gender (1 = Female)", ylab = "Over 72 Hours Probability", 
+     main = "Plot 2: Gender Effect Plot")
+```
+
+```{r, fig.width = 6, fig.height = 4}
+plot(allEffects(model)[3], xlab = "Age Group", ylab = "Over 72 Hours Probability", 
+     main = "Plot 3: Age Group Effect Plot")
+```
+
+```{r, fig.width = 6, fig.height = 4}
+plot(allEffects(model)[4], xlab = "Region of Origin", ylab = "Over 72 Hour Probability", 
+     main = "Plot 4: Region of Origin Effect Plot", axes = list(grid = TRUE, x = list(rotate = 60)))
+```
+\newpage
+
+
+```{r}
+#gender over years
+gender_year <- Final %>% group_by(year, gender) %>% select(year, gender) %>% count()
+
+ggplot(data = gender_year, aes(x = year, y = n, color = gender)) + geom_line() + geom_point() + labs(x = "Year", y ="Number of Immigrants", title = "Immigrant Children Held by Gender" ) 
+```
+
+```{r}
+#age group by year
+gender_agegroup <- Final %>% group_by(year, age_group) %>% select(year, age_group) %>% count()
+
+gender_agegroup
+ggplot(data = gender_agegroup, aes(x = year, y = n, color = age_group)) + geom_line() + geom_point() + labs(x = "Year", y ="Number of Immigrants", title = "Immigrant Children Held by Age Group" ) 
+```
+
+```{r}
+#held over time by year
+Final$over_72_hours <- as.character(Final$over_72_hours)
+gender_overtime <- Final %>% group_by(year, over_72_hours) %>% select(year, over_72_hours) %>% count()
+
+ggplot(data = gender_overtime, aes(x = year, y = n, color = over_72_hours)) + geom_line() + geom_point() + labs(x = "Year", y ="Number of Immigrants", title = "Immigrant Children Held by Overtime Status" ) 
+```
+
+```{r}
+#held over time by region of origin 
+region_year <- Final %>% group_by(year, region_of_origin) %>% select(year, region_of_origin) %>% count()
+
+ggplot(data = region_year, aes(x = year, y = n, color = region_of_origin)) + geom_line() + geom_point() + labs(x = "Year", y ="Number of Immigrants", title = "Immigrant Children Held by Region of Origin" ) 
+```
+
+
+
+
+
+### Naive Bayes Classification Model: 
+
+Next, a naive bayes classification predictive model was created to predict overtime at a detention center based on immigrant characteristics with the code below. A contingency table for the training data and the test data was generated. Both the performance (accuracy) on the test and training datasets was 65%. 
+
+```{r}
+Final1 <- Final
+
+#Convert everything in Final1 to factor
+Final1[] <- lapply(Final1, factor)
+
+#Train and Test Sets 
+set.seed(1000000)
+sample = sample.split(Final1, SplitRatio = .7)
+train = subset(Final1, sample == TRUE)
+test  = subset(Final1, sample == FALSE)
+
+#Model 
+NBclassifier = naiveBayes(over_72_hours ~ ., data = train)
+```
+
+```{r}
+#Prediction on training and test sets
+print_results=function(model){
+  trainPred = predict(model, newdata = train, type = "class")
+  trainTable=table(train$over_72_hours, trainPred)
+  testPred=predict(NBclassifier, newdata=test, type="class")
+  testTable=table(test$over_72_hours, testPred)
+  trainAcc=(trainTable[1,1]+trainTable[2,2])/sum(trainTable)
+  testAcc=(testTable[1,1]+testTable[2,2])/sum(testTable)
+  message("Contingency Table for Training Data")
+  print(trainTable)
+  message("Contingency Table for Test Data")
+  print(testTable)
+  message("Accuracy")
+  print(round(cbind(trainAccuracy=trainAcc, testAccuracy=testAcc),3))
+}
+
+print_results(NBclassifier)
+```
+
+### Logistic Regression Classification Model: 
+
+Next, a logistic regression classification model was created. With this model, the accuracy on the test data was 67% and the accuracy on the training data was 67%. The Naive Bayes and the Logistic Regression models both had a similar accuracy scores. For both the test and training set, the logistic regression classification model does a better job of accurately predicting those immigrant children kept less than 72 hours, compared to its predictions of more than 72 hours. This is most likely due to the imbalanced dataset, with 344594 data points of immigrants kept fewer than 72 hours and 168384 kept longer than 72 hours. Additionally, the accuracy score of 65% seems likely as there are many other factors that can contribute to whether an immigrant child is detained longer than 72 hours. 
+
+```{r }
+#Making classification model 
+names <- c(2,3,4,5)
+Final[,names] <- lapply(Final[,names] , factor)
+
+Final <- Final %>% select(year, gender, age_group, region_of_origin, over_72_hours)
+
+set.seed(3456)
+#Create training and test sets
+spl = sample.split(Y = Final$over_72_hours, SplitRatio = 0.7)
+train = subset(Final, spl == TRUE)
+test = subset(Final, spl == FALSE)
+
+#Building Logistic Regression Model
+model = glm(over_72_hours ~ ., family = "binomial", data = train)
+```
+
+```{r}
+#Baseline accuracy
+prop.table(table(train$over_72_hours))
+```
+
+```{r }
+#Evaluation of Model Performance on the training set:
+#Predictions on the training set
+predict_train = predict(model, data = train, type = "response")
+train <- train %>% na.omit()
+```
+
+```{r}
+#Confusion Matrix on Training Data
+table(train$over_72_hours, predict_train > 0.5)
+```
+
+```{r}
+#Accuracy
+(240544+429)/nrow(train) 
+```
+
+```{r }
+#Evaluate model perforamnce on the test set
+test <- test %>% na.omit()
+
+#Predictions on the test set
+predict_test = predict(model, newdata = test, type = "response")
+```
+
+```{r}
+#Confusion Matrix on Training Data
+table(test$over_72_hours, predict_test > 0.5)
+```
+
+```{r}
+#Accuracy of Model on Test Data
+(103095 + 181)/nrow(test) 
+```
+
+### Logistic Regression Classification Model: Undersampling
+
+Last, a logistic regression classification model was created with a balanced dataset. A balanced dataset was achieved through undersampling so the number of data points in which over_72_hours = 1 and over_72_hours = 0 were the same. The accuracy score remained around the same. The area under the ROC curve was 0.629. 
+
+```{r}
+train_index <- sample.split(Y = Final$over_72_hours , SplitRatio = 0.7)
+
+train_data <- Final[train_index, ]
+test_data <- Final[!train_index, ]
+
+#Logistic models Models
+logit_model <- glm(data = train_data ,
+                   formula = over_72_hours~. ,
+                   family = "binomial" )
+
+logit_pred <- predict(object = logit_model,
+                      newdata = test_data ,
+                      type = "response" )
+
+#Create a balanced dataset
+data_rose <- ROSE(over_72_hours ~., data = train, seed = 1)$data
+
+#train logistic regression on balanced data
+rose_model <- glm(over_72_hours ~., data = data_rose, family = "binomial")
+
+rose_pred <- predict(rose_model, newdata = test_data, 
+                     type = "response")
+
+#predict
+roc_pred <- prediction(predictions = rose_pred, labels = test_data$over_72_hours)
+roc_perf <- performance(roc_pred, "tpr", "fpr")
+
+#create ROC curve 
+roc.curve(test_data$over_72_hours, logit_pred)
+```
+
+## 6 DISCUSSION AND LIMITATIONS
+
+There are limitations to this study. First, no causal claims between immigrant children characteristics and being kept overtime in a detention facility can be made because there was no randomized treatment nor administered randomization. In addition, this study's findings cannot be extrapolated outside of the years 2017 to 2020. Instead, this study confirms correlations between certain immigrant characteristics and the odds of being detained overtime. This study confirms that during Donald Trump's presidency, thousands of immigrant children were kept over the 72 hour limit at detention facilities, and further supports the theory that Trump disregarded the human rights of thousands of immigrants and their children. The classification models built also need to be used with discretion because of their accuracy scores around 65%. 
+
+## 7 CONCLUSION
+
+Under the Trump administration, children were held in cages, lived in freezing temperatures, and were separated from their parents. Trump not only failed to provide the basic standards of care immigrants were required to receive, but also failed to respect basic human rights. With the limited data available from 2017 to 2020, this study has completed data analysis to expand on the existing literature centered on immigration policy under President Trump. 
+
+Based on the results of this study, it is clear that several immigrant children characteristics increase the log odds of being detained over the 72 hour limit. Year, gender, age group, and region of origin all impact the chance of overtime. Specifically, an immigrant child who is female, 6-8 years old, kept in the year 2020, and from Central America has the highest log odds of being detained longer than the legal 72 hour time limit. This thus supports the theory that immigrant children of certain nationalities, genders, and ages are more likely to be kept over the 72 hours than others. 
+
+The classification models built allow predictions to be made on the likelihood of an immigrant child being kept over the 72 hour time limit in detention facilities. Although these predictions may not be extrapolated beyond the years 2017 to 2020 and United States immigrants, there remains value in giving policymakers an idea of the demographics of immigrant children likely to be kept overtime in detention facilities. This information would allow policymakers in the Biden administration to determine which groups of immigrants they need to focus their attention on to quickly reunify families and create a more humane and efficient detention system. With President-Elect Biden's administration entering the White House, these findings can help inform their immigration policies.
+
+## 8 BIBLIOGRAPHY
+
+“Adding Weights to Logistic Regression for Imbalanced Data.” Cross Validated, 1 Sept. 2015, stats.stackexchange.com/questions/164693/adding-weights-to-logistic-regression-for-imbalanced-data. 
+
+Ashkiani, Shahin. “Study of Class Imabalance Problems.” RPubs, rpubs.com/Shaahin/im_class_p1. 
+
+“Change the y Axis on Effect Plot in R.” Stack Overflow, 1 Feb. 1967, stackoverflow.com/questions/47613064/change-the-y-axis-on-effect-plot-in-r. 
+
+Ford, Clay. “University of Virginia Library Research Data Services + Sciences.” Research Data Services + Sciences, 2020, data.library.virginia.edu/visualizing-the-effects-of-logistic-regression/. 
+
+“Imbalanced Classification Problems in R.” Analytics Vidhya, 5 July 2020,
+
+www.analyticsvidhya.com/blog/2016/03/practical-guide-deal-imbalanced-classification-problems/. 
+
+Khan, Riaz. “Naive Bayes Classifier: Theory and R Example.” RPubs, South Dakota State University, 20 Dec. 2017, rpubs.com/riazakhan94/naive_bayes_classifier_e1071. 
+https://rpubs.com/riazakhan94/naive_bayes_classifier_e1071
+
+Loynes, Christopher. “How to Create Naive Bayes in R for Numerical and Categorical Variables.” Stack Overflow, 1 Jan. 2017, stackoverflow.com/questions/47514017/how-to-create-naive-bayes-in-r-for-numerical-and-categorical-variables. 
+
+Maklin, Cory. “Random Forest In R.” Medium, Towards Data Science, 30 July 2019, towardsdatascience.com/random-forest-in-r-f66adf80ec9. 
+
+Narea, Nicole.“Trump Showed No Regret over Family Separations during the Presidential Debate,” Vox, October 22, 2020, https://www.vox.com/2020/10/22/21529710/trump-debate-family-separations.
+
+Calderón, Andrew & Flagg, Anna.“500,000 Kids, 30 Million Hours: Trump’s Vast Expansion of Child Detention,” The Marshall Project, October 30, 2020, https://www.themarshallproject.org/2020/10/30/500-000-kids-30-million-hours-trump-s-vast-expansion-of-child-detention.
+
+Villa, Lissandra.“President Trump Won’t Say How 545 Migrant Children Still Separated From Their Parents Will Be Reunited,” Time, accessed November 9, 2020, https://time.com/5903225/donald-trump-family-separation-debate/.
+
+## 9 APPENDIX
+
+### 1. Data Cleaning
+
+```{r table3, results='asis'}
+#Download DataSet 
+detention_minors <- read_excel("detention_of_minors.xlsx")
+detention_minors$year = substr(detention_minors$date_in,1,4) 
+detention_minors$year = suppressWarnings(as.numeric(detention_minors$year))
+
+condense <- detention_minors %>% select(year, gender, citizenship, age_group, 
+                                        hours_in_custody, border, sector)
+
+#Create new Column: 72 hours? 1 if yes, 0 if No 
+condense$over_72_hours <- "Set"
+condense$hours_in_custody = suppressWarnings(as.numeric(condense$hours_in_custody))
+condense$over_72_hours[condense$hours_in_custody > 72.0] <- "1"
+condense$over_72_hours[condense$hours_in_custody <= 72.0] <- "0"
+condense$over_72_hours <- suppressWarnings(as.numeric(condense$over_72_hours))
+
+#Condense Dataset 
+Final <- condense %>% select(year, gender, citizenship, age_group, 
+                             border, over_72_hours) %>% na.omit()
+Final <- Final %>% na.omit()
+Final$region_of_origin <- suppressWarnings(Final$region_of_origin %>% na.omit())
+
+#Remove "Years" 
+Final$age_group <- substr(Final$age_group,1,nchar(Final$age_group)-6) #Age Group 
+
+#Make variables 
+Final$gender[Final$gender == "Female"] <- 1 #Female is 1 
+Final$gender[Final$gender == "Male"] <- 0 #Male is 0 
+Final$gender <- suppressWarnings(as.numeric(Final$gender))
+Final$gender <- suppressWarnings(as.character(Final$gender))
+
+Final$age_group[Final$age_group == "0-1"] <- 1 #Change to age group 
+Final$age_group[Final$age_group == "1-2"] <- 2 
+Final$age_group[Final$age_group == "3-5"] <- 3 
+Final$age_group[Final$age_group == "6-8"] <- 4 
+Final$age_group[Final$age_group == "9-11"] <- 5 
+Final$age_group[Final$age_group == "12-14"] <- 6
+Final$age_group[Final$age_group == "15-18"] <- 7
+#Final$age_group <- as.numeric(Final$age_group)
+Final$age_group <- suppressWarnings(as.character(Final$age_group))
+
+#Merge Regions 
+regions <- read_excel("Regions_.xlsx")
+Final <- merge(regions, Final)
+
+Final <- Final %>% select(-citizenship)
+Final <- Final %>% select(year, gender, age_group, region_of_origin, border, over_72_hours)
+
+#Remove Missing Values
+Final <- Final %>% na.omit()
+suppressWarnings(
+  Final[Final$region_of_origin == "NA",] <- as.numeric(Final$region_of_origin == "NA"))
+Final <- Final[Final$region_of_origin != "0",]
+Final <- Final[Final$age_group != "",]
+
+#Model, Logistic Regression
+Final$region_of_origin <- suppressWarnings(as.factor(Final$region_of_origin))
+Final$region_of_origin <- relevel(Final$region_of_origin, ref = "Mexico")
+model <- glm(over_72_hours ~ year + gender + age_group + region_of_origin, data = Final)
+
+#Convert to dataframe and print first 5 rows
+Final_df <- Final %>% head()
+```
+
+### 2. Exploratory Data Analysis 
+
+```{r}
+#Exploratory Data Analysis 
+Final$year %>% table()
+
+Final$gender %>% table()
+
+Final$age_group %>% table()
+
+Final$region_of_origin %>% table()
+
+Final$over_72_hours %>% table()
+```
+After exploring the dataset, the main takeaways are:
+
+#### Year:
+
+•	There are 63185 data points in 2017, 160608 in 2018, 279254 in 2019, and 9931 in 2020
+
+#### Gender:
+
+•	There are 313155 Male immigrants, 199823 Female immigrants
+
+#### Age Group:
+
+•	There are 13644 immigrants who are in Age Group 1 (0-1 years old), 
+47213 in Age Group 2 (1-2 years old), 80051 in Age Group 3 (3-5 years old), 74062 in Age Group 4 (6-8 years old), 59164 in Age Group 5 (9-11 years old), 68686 in Age Group 6 (12-14 years old), 170158 in Age Group 7 (15-18 years old) 
+
+
+#### Region of Origin: 
+
+• There are 86667 immigrants from Mexico, 2196 from Europe, 4284 from Asia, 834 from Africa,
+69 from Canada, 4280 from Caribbean, 390556 from Central America, 28 from the Middle East,
+4 from Oceania, and 24060 from South America. 
+
+#### Over 72 Hours: 
+
+• There are 344594 immigrants who were kept less than 72 hours in an immigrant detention center. There are 168384 immigrants were were kept more than 72 hours in an immigrant detention center. 
+
+### 3. Naive Bayes: Conditional Probabilites
+```{r}
+print(NBclassifier)
+```
+
+
+### 4. Decision Tree Classifier 
+
+I created four balanced datasets. The first dataset was oversampled. The second was undersampled. The third was both under and over sampled. The last used the ROSE to generate data synethically. The Area under the Curve is ~0.62 for every dataset I made. 
+```{r fig.width = 3, fig.height = 3,}
+library(rpart)
+
+#To Balance DataSet 
+
+#OverSampling
+data_balanced_over <- ovun.sample(over_72_hours ~ ., data = train, method = "over", 
+                                  N = 482432)$data
+
+#UnderSampling
+data_balanced_under <- ovun.sample(over_72_hours ~ ., data = train, method = "under", 
+                                   N = 235738, seed = 1)$data
+
+#Both: Under and OverSampling
+data_balanced_both <- ovun.sample(over_72_hours ~ ., data = train, method = "both", p=0.5, 
+                                  N=1000, seed = 1)$data
+
+#Rose: 
+data_rose <- ROSE(over_72_hours ~., data = train, seed = 1)$data
+
+#build decision tree models
+tree.rose <- rpart(over_72_hours ~ ., data = data_rose)
+tree.over <- rpart(over_72_hours ~ ., data = data_balanced_over)
+tree.under <- rpart(over_72_hours ~ ., data = data_balanced_under)
+tree.both <- rpart(over_72_hours ~ ., data = data_balanced_both)
+
+#make predictions on data
+pred.tree.rose <- predict(tree.rose, newdata = test)
+pred.tree.over <- predict(tree.over, newdata = test)
+pred.tree.under <- predict(tree.under, newdata = test)
+pred.tree.both <- predict(tree.both, newdata = test)
+
+#calculate accuracy of predictions
+#65%
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
